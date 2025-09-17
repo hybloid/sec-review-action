@@ -1,0 +1,46 @@
+name: 'JB AI Security Review'
+description: 'Run security review on your pull requests'
+author: 'Qodana Taint Team'
+
+inputs:
+  model:
+    description: 'Model to use for analysis (optional)'
+    required: false
+  repo-path:
+    description: 'Path to the repository to analyze'
+    required: false
+    default: '.'
+  result-path:
+    description: 'Path where results (including SARIF) will be written'
+    required: false
+    default: '.'
+  temperature:
+    description: 'Temperature parameter for analysis'
+    required: false
+    default: '0.0'
+  prompt:
+    description: 'Optional prompt to pass to the analyzer'
+    required: false
+  jbai-token:
+    description: 'JBAI token for authentication'
+    required: true
+  jbai-environment:
+    description: 'JBAI environment (e.g., staging, prod)'
+    required: false
+    default: 'staging'
+  github-token:
+    description: 'GitHub token for creating PR annotations (use GITHUB_TOKEN)'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  sarif-file:
+    description: 'Path to the generated SARIF file'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+
+branding:
+  icon: 'shield'
+  color: 'red'
