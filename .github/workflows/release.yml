@@ -1,0 +1,52 @@
+name: Release Action
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build action bundle
+        run: npm run build
+
+      - name: Compute release metadata
+        id: vars
+        shell: bash
+        run: |
+          TAG="v$(jq -r .version package.json)-run${GITHUB_RUN_NUMBER}"
+          echo "TAG=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_NAME=Release $(date -u +'%Y-%m-%dT%H:%M:%SZ') (${GITHUB_SHA::7})" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.vars.outputs.TAG }}
+          name: ${{ steps.vars.outputs.RELEASE_NAME }}
+          generate_release_notes: true
+          files: |
+            dist/index.js
+            dist/index.js.map
+            dist/licenses.txt
+            action.yml
+            README.md
+            package.json
+            tool/analysis.jar

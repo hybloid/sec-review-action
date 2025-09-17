@@ -39,7 +39,7 @@ outputs:
 
 runs:
   using: 'node20'
-  main: 'src/index.ts'
+  main: 'dist/index.js'
 
 branding:
   icon: 'shield'
