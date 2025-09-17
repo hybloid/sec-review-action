@@ -10,7 +10,7 @@ import artifactClient from '@actions/artifact';
  */
 export async function uploadSarifArtifact(
   sarifPath: string,
-  artifactName: string = 'security-review-sarif',
+  artifactName: string = 'security-review.sarif',
   retentionDays: number = 7
 ): Promise<void> {
   try {
