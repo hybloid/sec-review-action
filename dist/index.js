@@ -30208,10 +30208,10 @@ async function run() {
         const jarPath = await (0, downloader_1.resolveJarFromOwnRelease)();
         // Build command arguments
         const args = [
-            '-jar',
-            jarPath,
             `-DJBAI_TOKEN=${jbaiToken}`,
             `-DJBAI_ENVIRONMENT=${jbaiEnvironment}`,
+            '-jar',
+            jarPath,
             `--repo=${repoPath}`,
             `--result=${resultPath}`,
             `--temperature=${temperature}`,
