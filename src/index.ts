@@ -5,6 +5,7 @@ import * as path from 'path';
 import { uploadSarifToCodeScanning } from './sarif';
 import { resolveJarFromOwnRelease } from './downloader';
 import { annotatePullRequestFromSarif } from './annotate';
+import { uploadSarifArtifact } from './artifacts';
 
 async function run() {
   try {
@@ -66,6 +67,9 @@ async function run() {
       } else {
         core.info('github-token not provided; skipping PR annotations and SARIF upload.');
       }
+
+      // Always upload SARIF as a workflow artifact if it exists
+      await uploadSarifArtifact(sarifPath, 'security-review-sarif', 7)
     } else {
       core.warning('SARIF file not found at expected location');
       core.setFailed('Expected SARIF file was not generated');
