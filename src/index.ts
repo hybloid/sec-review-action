@@ -2,51 +2,9 @@ import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as fs from 'fs';
 import * as path from 'path';
-import { context, getOctokit } from '@actions/github';
-import { buildPrCommentsFromSarif, parseSarif, uploadSarifToCodeScanning } from './sarif';
+import { uploadSarifToCodeScanning } from './sarif';
 import { resolveJarFromOwnRelease } from './downloader';
-
-async function annotatePullRequestFromSarif(sarifPath: string, githubToken: string) {
-  const pr = context.payload.pull_request;
-  if (!pr) {
-    core.info('Not a pull_request event; skipping PR annotations.');
-    return;
-  }
-  const octokit = getOctokit(githubToken);
-  const { owner, repo } = context.repo;
-  const pull_number = pr.number;
-
-  if (!fs.existsSync(sarifPath)) {
-    core.warning(`SARIF file not found for PR annotations: ${sarifPath}`);
-    return;
-  }
-
-  const sarifRaw = fs.readFileSync(sarifPath, 'utf8');
-  const sarif = parseSarif(sarifRaw);
-  if (!sarif) return;
-
-  const comments = buildPrCommentsFromSarif(sarif, 50);
-
-  if (comments.length === 0) {
-    core.info('No SARIF results to annotate on the PR.');
-    return;
-  }
-
-  core.info(`Creating PR review with ${comments.length} comment(s) from SARIF findings...`);
-  try {
-    await octokit.rest.pulls.createReview({
-      owner,
-      repo,
-      pull_number,
-      event: 'COMMENT',
-      comments,
-    });
-    core.info('PR review created successfully with SARIF annotations.');
-  } catch (e: any) {
-    core.warning(`Failed to create PR review comments: ${e?.message || e}`);
-  }
-}
-
+import { annotatePullRequestFromSarif } from './annotate';
 
 async function run() {
   try {
@@ -56,6 +14,8 @@ async function run() {
     const resultPath = core.getInput('result-path') || '.';
     const temperature = core.getInput('temperature') || '0.0';
     const prompt = core.getInput('prompt');
+    const authType = core.getInput('authType');
+    const branch = core.getInput('branch');
     const jbaiToken = core.getInput('jbai-token');
     const jbaiEnvironment = core.getInput('jbai-environment') || 'staging';
     const githubToken = core.getInput('github-token');
@@ -65,10 +25,6 @@ async function run() {
       return;
     }
 
-    // Set environment variable
-    process.env.JBAI_TOKEN = jbaiToken;
-    process.env.JBAI_ENVIRONMENT = jbaiEnvironment;
-
     // Download analysis.jar from this action's latest release
     const jarPath = await resolveJarFromOwnRelease();
 
@@ -76,6 +32,8 @@ async function run() {
     const args = [
       '-jar',
       jarPath,
+      `-DJBAI_TOKEN=${jbaiToken}`,
+      `-DJBAI_ENVIRONMENT=${jbaiEnvironment}`,
       `--repo=${repoPath}`,
       `--result=${resultPath}`,
       `--temperature=${temperature}`,
@@ -84,6 +42,8 @@ async function run() {
 
     if (model) args.push(`--model=${model}`);
     if (prompt) args.push(`--prompt=${prompt}`);
+    if (authType) args.push(`--authType=${authType}`);
+    if (branch) args.push(`--branch=${branch}`);
 
     core.info('Running static security analysis...');
     core.info(`Command: java ${args.join(' ')}`);

@@ -21,6 +21,12 @@ inputs:
   prompt:
     description: 'Optional prompt to pass to the analyzer'
     required: false
+  authType:
+    description: 'Optional authentication type to pass to the analyzer (e.g., gh-app, pat)'
+    required: false
+  branch:
+    description: 'Optional branch name to analyze'
+    required: false
   jbai-token:
     description: 'JBAI token for authentication'
     required: true

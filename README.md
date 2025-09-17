@@ -18,6 +18,8 @@ This GitHub Action runs static security analysis using a JAR file, generates SAR
 | `result-path` | Path where results (including SARIF) will be written | No | `.` |
 | `temperature` | Temperature parameter for analysis | No | `0.0` |
 | `prompt` | Optional prompt to pass to the analyzer | No | - |
+| `authType` | Optional authentication type to pass to the analyzer (e.g., gh-app, pat) | No | - |
+| `branch` | Optional branch name to analyze | No | - |
 | `github-token` | Token used to annotate PRs (use `${{ secrets.GITHUB_TOKEN }}`) | No | - |
 
 ## Outputs

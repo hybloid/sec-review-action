@@ -29922,6 +29922,91 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 3927:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.annotatePullRequestFromSarif = annotatePullRequestFromSarif;
+const core = __importStar(__nccwpck_require__(7484));
+const fs = __importStar(__nccwpck_require__(9896));
+const github_1 = __nccwpck_require__(3228);
+const sarif_1 = __nccwpck_require__(866);
+async function annotatePullRequestFromSarif(sarifPath, githubToken) {
+    const pr = github_1.context.payload.pull_request;
+    if (!pr) {
+        core.info('Not a pull_request event; skipping PR annotations.');
+        return;
+    }
+    const octokit = (0, github_1.getOctokit)(githubToken);
+    const { owner, repo } = github_1.context.repo;
+    const pull_number = pr.number;
+    if (!fs.existsSync(sarifPath)) {
+        core.warning(`SARIF file not found for PR annotations: ${sarifPath}`);
+        return;
+    }
+    const sarifRaw = fs.readFileSync(sarifPath, 'utf8');
+    const sarif = (0, sarif_1.parseSarif)(sarifRaw);
+    if (!sarif)
+        return;
+    const comments = (0, sarif_1.buildPrCommentsFromSarif)(sarif, 50);
+    if (comments.length === 0) {
+        core.info('No SARIF results to annotate on the PR.');
+        return;
+    }
+    core.info(`Creating PR review with ${comments.length} comment(s) from SARIF findings...`);
+    try {
+        await octokit.rest.pulls.createReview({
+            owner,
+            repo,
+            pull_number,
+            event: 'COMMENT',
+            comments,
+        });
+        core.info('PR review created successfully with SARIF annotations.');
+    }
+    catch (e) {
+        core.warning(`Failed to create PR review comments: ${e?.message || e}`);
+    }
+}
+
+
+/***/ }),
+
 /***/ 4492:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -30099,46 +30184,9 @@ const core = __importStar(__nccwpck_require__(7484));
 const exec = __importStar(__nccwpck_require__(5236));
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
-const github_1 = __nccwpck_require__(3228);
 const sarif_1 = __nccwpck_require__(866);
 const downloader_1 = __nccwpck_require__(4492);
-async function annotatePullRequestFromSarif(sarifPath, githubToken) {
-    const pr = github_1.context.payload.pull_request;
-    if (!pr) {
-        core.info('Not a pull_request event; skipping PR annotations.');
-        return;
-    }
-    const octokit = (0, github_1.getOctokit)(githubToken);
-    const { owner, repo } = github_1.context.repo;
-    const pull_number = pr.number;
-    if (!fs.existsSync(sarifPath)) {
-        core.warning(`SARIF file not found for PR annotations: ${sarifPath}`);
-        return;
-    }
-    const sarifRaw = fs.readFileSync(sarifPath, 'utf8');
-    const sarif = (0, sarif_1.parseSarif)(sarifRaw);
-    if (!sarif)
-        return;
-    const comments = (0, sarif_1.buildPrCommentsFromSarif)(sarif, 50);
-    if (comments.length === 0) {
-        core.info('No SARIF results to annotate on the PR.');
-        return;
-    }
-    core.info(`Creating PR review with ${comments.length} comment(s) from SARIF findings...`);
-    try {
-        await octokit.rest.pulls.createReview({
-            owner,
-            repo,
-            pull_number,
-            event: 'COMMENT',
-            comments,
-        });
-        core.info('PR review created successfully with SARIF annotations.');
-    }
-    catch (e) {
-        core.warning(`Failed to create PR review comments: ${e?.message || e}`);
-    }
-}
+const annotate_1 = __nccwpck_require__(3927);
 async function run() {
     try {
         // Inputs
@@ -30147,6 +30195,8 @@ async function run() {
         const resultPath = core.getInput('result-path') || '.';
         const temperature = core.getInput('temperature') || '0.0';
         const prompt = core.getInput('prompt');
+        const authType = core.getInput('authType');
+        const branch = core.getInput('branch');
         const jbaiToken = core.getInput('jbai-token');
         const jbaiEnvironment = core.getInput('jbai-environment') || 'staging';
         const githubToken = core.getInput('github-token');
@@ -30154,15 +30204,14 @@ async function run() {
             core.setFailed('jbai-token is required');
             return;
         }
-        // Set environment variable
-        process.env.JBAI_TOKEN = jbaiToken;
-        process.env.JBAI_ENVIRONMENT = jbaiEnvironment;
         // Download analysis.jar from this action's latest release
         const jarPath = await (0, downloader_1.resolveJarFromOwnRelease)();
         // Build command arguments
         const args = [
             '-jar',
             jarPath,
+            `-DJBAI_TOKEN=${jbaiToken}`,
+            `-DJBAI_ENVIRONMENT=${jbaiEnvironment}`,
             `--repo=${repoPath}`,
             `--result=${resultPath}`,
             `--temperature=${temperature}`,
@@ -30172,6 +30221,10 @@ async function run() {
             args.push(`--model=${model}`);
         if (prompt)
             args.push(`--prompt=${prompt}`);
+        if (authType)
+            args.push(`--authType=${authType}`);
+        if (branch)
+            args.push(`--branch=${branch}`);
         core.info('Running static security analysis...');
         core.info(`Command: java ${args.join(' ')}`);
         // Execute the JAR file
@@ -30185,7 +30238,7 @@ async function run() {
             core.info(`SARIF file location: ${sarifPath}`);
             // Annotate PR if possible and upload SARIF to code scanning if token provided
             if (githubToken) {
-                await annotatePullRequestFromSarif(sarifPath, githubToken);
+                await (0, annotate_1.annotatePullRequestFromSarif)(sarifPath, githubToken);
                 await (0, sarif_1.uploadSarifToCodeScanning)(sarifPath, githubToken);
             }
             else {
