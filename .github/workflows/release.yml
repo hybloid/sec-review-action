@@ -26,6 +26,11 @@ jobs:
       - name: Build action bundle
         run: npm run build
 
+      - name: Fetch latest JAR from private repo and save as analysis.jar (including drafts)
+        id: fetch-jar
+        shell: bash
+        run: bash tool/fetch-latest-jar-macos.sh "${{ secrets.SEC_REVIEW_PAT }}" "hybloid/hktn25-sec-review"
+
       - name: Compute release metadata
         id: vars
         shell: bash
