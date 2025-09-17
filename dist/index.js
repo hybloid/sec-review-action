@@ -29922,6 +29922,140 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 4492:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.resolveJarFromOwnRelease = resolveJarFromOwnRelease;
+const core = __importStar(__nccwpck_require__(7484));
+const fs = __importStar(__nccwpck_require__(9896));
+const path = __importStar(__nccwpck_require__(6928));
+async function fetchJson(url) {
+    const headers = {
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'sec-review-action'
+    };
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+        throw new Error(`HTTP ${res.status} fetching ${url}`);
+    }
+    return await res.json();
+}
+async function downloadWithProgress(url, destPath) {
+    const headers = {
+        'Accept': 'application/octet-stream',
+        'User-Agent': 'sec-review-action'
+    };
+    const res = await fetch(url, { headers, redirect: 'follow' });
+    if (!res.ok || !res.body) {
+        throw new Error(`Failed to download asset: HTTP ${res.status}`);
+    }
+    const total = Number(res.headers.get('content-length') || '0');
+    let downloaded = 0;
+    const reader = res.body.getReader();
+    await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+    const file = fs.createWriteStream(destPath);
+    let lastLogged = Date.now();
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done)
+                break;
+            if (value) {
+                const buf = Buffer.from(value);
+                file.write(buf);
+                downloaded += buf.length;
+                const now = Date.now();
+                if (now - lastLogged > 1000) {
+                    if (total > 0) {
+                        const pct = ((downloaded / total) * 100).toFixed(1);
+                        core.info(`Downloading analysis.jar: ${pct}% (${downloaded}/${total} bytes)`);
+                    }
+                    else {
+                        core.info(`Downloading analysis.jar: ${downloaded} bytes`);
+                    }
+                    lastLogged = now;
+                }
+            }
+        }
+    }
+    finally {
+        file.end();
+    }
+    core.info(`Download complete: ${downloaded} bytes`);
+    if (!fs.existsSync(destPath) || fs.statSync(destPath).size === 0) {
+        throw new Error('Downloaded analysis.jar is empty or missing');
+    }
+}
+async function resolveJarFromOwnRelease() {
+    const actionRepo = process.env.GITHUB_ACTION_REPOSITORY || 'hybloid/sec-review-action';
+    core.info(`Resolving analysis.jar from latest release of ${actionRepo}...`);
+    // Use the public latest release endpoint (excludes drafts). If that fails, try list releases.
+    let release;
+    try {
+        release = await fetchJson(`https://api.github.com/repos/${actionRepo}/releases/latest`);
+    }
+    catch (e) {
+        core.warning(`Failed to fetch latest release (stable): ${e}`);
+        const releases = await fetchJson(`https://api.github.com/repos/${actionRepo}/releases?per_page=1`);
+        if (Array.isArray(releases) && releases.length > 0)
+            release = releases[0];
+    }
+    if (!release) {
+        throw new Error(`No releases found for ${actionRepo}`);
+    }
+    const assets = release.assets || [];
+    const jarAsset = assets.find(a => a.name === 'analysis.jar') || assets.find(a => /\.jar$/i.test(a.name));
+    if (!jarAsset) {
+        throw new Error('No JAR asset in the latest release');
+    }
+    const url = jarAsset.browser_download_url || (jarAsset.url /* fallback to API URL */);
+    if (!url)
+        throw new Error('Asset download URL not found');
+    const tmpDir = process.env['RUNNER_TEMP'] || path.join(process.cwd(), '.tmp');
+    const dest = path.join(tmpDir, 'analysis.jar');
+    await downloadWithProgress(url, dest);
+    return dest;
+}
+
+
+/***/ }),
+
 /***/ 9407:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -29967,6 +30101,7 @@ const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
 const github_1 = __nccwpck_require__(3228);
 const sarif_1 = __nccwpck_require__(866);
+const downloader_1 = __nccwpck_require__(4492);
 async function annotatePullRequestFromSarif(sarifPath, githubToken) {
     const pr = github_1.context.payload.pull_request;
     if (!pr) {
@@ -30022,10 +30157,12 @@ async function run() {
         // Set environment variable
         process.env.JBAI_TOKEN = jbaiToken;
         process.env.JBAI_ENVIRONMENT = jbaiEnvironment;
+        // Download analysis.jar from this action's latest release
+        const jarPath = await (0, downloader_1.resolveJarFromOwnRelease)();
         // Build command arguments
         const args = [
             '-jar',
-            'tool/analysis.jar',
+            jarPath,
             `--repo=${repoPath}`,
             `--result=${resultPath}`,
             `--temperature=${temperature}`,

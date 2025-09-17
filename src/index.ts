@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { context, getOctokit } from '@actions/github';
 import { buildPrCommentsFromSarif, parseSarif, uploadSarifToCodeScanning } from './sarif';
+import { resolveJarFromOwnRelease } from './downloader';
 
 async function annotatePullRequestFromSarif(sarifPath: string, githubToken: string) {
   const pr = context.payload.pull_request;
@@ -68,10 +69,13 @@ async function run() {
     process.env.JBAI_TOKEN = jbaiToken;
     process.env.JBAI_ENVIRONMENT = jbaiEnvironment;
 
+    // Download analysis.jar from this action's latest release
+    const jarPath = await resolveJarFromOwnRelease();
+
     // Build command arguments
     const args = [
       '-jar',
-      'tool/analysis.jar',
+      jarPath,
       `--repo=${repoPath}`,
       `--result=${resultPath}`,
       `--temperature=${temperature}`,
